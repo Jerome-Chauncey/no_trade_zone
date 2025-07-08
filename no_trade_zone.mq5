@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright   "2025 Jerome Chauncey / NTZ"
 #property link        "https://github.com/Jerome-Chauncey"
-#property version     "1.15"
+#property version     "1.16"
 #property strict
 #property tester_file "ff_news_mt5.csv"
 
@@ -24,7 +24,7 @@ input string  ExcludedDates     = "";       // back-test: "YYYY.MM.DD,..."
 CTrade    trade;
 string    Sym;
 
-// pending‐stop tickets we placed
+// pending-stop tickets we placed
 ulong     BuyTicket       = 0;
 ulong     SellTicket      = 0;
 
@@ -215,7 +215,7 @@ void OnTick()
 {
    datetime now=TimeCurrent(); MqlDateTime dt; TimeToStruct(now,dt);
 
-   // 1) New‐day reset
+   // 1) New-day reset
    int today=dt.year*10000+dt.mon*100+dt.day;
    if(today!=lastResetDate)
    {
@@ -256,7 +256,7 @@ void OnTick()
       }
    }
 
-   // 2) London‐close flat @19:00
+   // 2) London-close flat @19:00
    if(!LondonClosed && dt.hour>=19)
    {
       CancelPendingOrders();
@@ -264,16 +264,16 @@ void OnTick()
          trade.PositionClose(PositionGetInteger(POSITION_TICKET));
       ClearDailyLines();
       LondonClosed=true;
-      Print("✅ London‐close flat & cleanup");
+      Print("✅ London-close flat & cleanup");
    }
-   if(LondonClosed) return;  // no more trading till tomorrow
+   if(LondonClosed) return;  // stop until tomorrow
 
-   // 3) update bottom‐center range label
+   // 3) update bottom-center range label
    {
       uint w=(uint)ChartGetInteger(0,CHART_WIDTH_IN_PIXELS);
       ObjectSetInteger(0,OBJ_RANGE,OBJPROP_XDISTANCE,(int)w/2);
-      double aP=(AsiaHigh>AsiaLow?(AsiaHigh-AsiaLow)/(_Point*10.0):0.0),
-             nP=(NTZRange>0   ?NTZRange/(_Point*10.0)  :0.0);
+      double aP=(AsiaHigh>AsiaLow? (AsiaHigh-AsiaLow)/(_Point*10.0):0.0),
+             nP=(NTZRange>0   ? NTZRange/(_Point*10.0)  :0.0);
       ObjectSetString(0,OBJ_RANGE,OBJPROP_TEXT,
          StringFormat("Asia: %.1f pips\nNTZ : %.1f pips",aP,nP));
    }
@@ -301,7 +301,7 @@ void OnTick()
       AsiaLow =MathMin(AsiaLow, iLow (Sym,PERIOD_M1,0));
    }
 
-   // 7) 09:00 NTZ start
+   // 7) 09:00 NTZ start & threshold
    if(dt.hour==9 && dt.min==0 && frankOpen==0)
    {
       double aP=(AsiaHigh-AsiaLow)/(_Point*10.0);
@@ -342,13 +342,19 @@ void OnTick()
          PrintFormat("🛑 NTZ %.1f pips outside [10–30] → halt",nP);
    }
 
-   //10) cancel by noon if unfilled
-   if(!PositionOpened&&OrdersPlaced&&frankOpen>0&&now>=frankOpen+3*3600)
+   // 10) cancel unfilled stops by 3h after frankOpen
+   if(!PositionOpened        // **only if no fill yet**
+      && OrdersPlaced        // stops are live
+      && frankOpen>0
+      && TimeCurrent()>=frankOpen+3*3600)
+   {
+      Print("⌛ 3h passed without fill → canceling stops");
       CancelPendingOrders();
+   }
 
-   //11) TP ladder & detect fills
+   // 11) TP ladder & detect fills
    if(NTZDefined) ManageTakeProfits();
-   if(!PositionOpened&&PositionSelect(Sym))
+   if(!PositionOpened && PositionSelect(Sym))
       PositionOpened=true;
 }
 
